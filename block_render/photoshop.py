@@ -4,9 +4,20 @@ import shutil
 import os
 
 try:
-    from gitignore import dolts_real_name
+    from other.gitignore import dolts_real_name
 except ModuleNotFoundError:
     dolts_real_name = 'Dolt'
+
+
+def prepare_file(path: str) -> None:
+    try:
+        os.makedirs(''.join([i + '/' for i in path.split('/')][:-1:]))
+    except FileExistsError:
+        pass
+
+
+def is_default_rl(rl: str) -> bool:
+    return ':' not in rl or 'minecraft:' in rl
 
 
 class RenderableBlock:
@@ -34,21 +45,22 @@ class RenderableBlock:
                 neapolitan:adzuki_cake, mod_id would be 'neapolitan' and name would be 'adzuki_cake'.
 
                 abnormals_directory: the folder which contains the source code of every abnormals mod.
+
                 vanilla_directory: the folder which contains the assets of vanilla minecraft.
-                naming_convention: the function that translates an abnormal mod's modid to the name you have in your folder.
-                                   Defaults to replacing all underscores with hyphens, which is what IntelliJ does when
-                                   cloning mods from Github.
-                blockbench_directory: the folder to dump all texture and models. The folder that blockbench should import
-                                      models from.
-                custom_model_names: If the name of a block's models differ from that block's resource location, specify a LIST
-                                    of all the models files that should automatically be transported. No path needed, only
-                                    "NAME_OF_THE_FILE.json", please.
+
+                naming_convention: the function that translates an abnormal mod's modid to the name you have in your
+                folder. Defaults to replacing all underscores with hyphens, which is what IntelliJ does when cloning
+                mods from Github.
+
+                blockbench_directory: the folder to dump all texture and models. The folder that blockbench should
+                import models from. custom_model_names: If the name of a block's models differ from that block's
+                resource location, specify a LIST of all the models files that should automatically be transported.
+                No path needed, only "NAME_OF_THE_FILE.json", please.
         """
 
         self.mod_id = mod_id
         self.name = name
         self.abnormals_directory = abnormals_directory
-        self.folder_naming_convention = naming_convention
         self.folder_naming_convention = naming_convention
         self.blockbench_directory = blockbench_directory
         self.vanilla_directory = vanilla_directory
@@ -61,7 +73,10 @@ class RenderableBlock:
         """
             The other function you need to run.
 
-            Looks at the parent function of each model json.
+            Looks at each model json in self.custom_model_names, or that model's parent if it has one.
+            Fuses everything together into one huge model file that Blockbench can parse.
+            Finds all the textures your model lists and organizes those as well.
+            It's all very neat.
         """
         # model is the original file
         # parent is the vanilla file
@@ -74,7 +89,7 @@ class RenderableBlock:
 
                 if has_parent:
                     parent_path: str = self.model_path_from_rl(original_data.get('parent'))
-                    RenderableBlock.prepare_file(return_path)
+                    prepare_file(return_path)
                     shutil.copy(parent_path, return_path)
                 else:
                     shutil.copy(model, return_path)
@@ -92,13 +107,13 @@ class RenderableBlock:
                 for key, val in (parent_data if has_parent else original_data).get('textures').items():
                     val: str
                     key: str
-                    if ':' not in val or 'minecraft:' in val:
+                    if is_default_rl(val):
                         return_texture_path = self.get_return_textures_path('minecraft')
                     else:
                         return_texture_path = self.get_return_textures_path(val.split(':')[0])
 
                     return_path = return_texture_path + '/' + self.texture_filename_from_rl(val)
-                    RenderableBlock.prepare_file(return_path)
+                    prepare_file()
                     shutil.copy(self.texture_path_from_rl(val), return_path)
 
                 json.dump(parent_data, return_file)
@@ -122,21 +137,21 @@ class RenderableBlock:
             modid = self.mod_id
         return f'{self.blockbench_directory}/{modid}/textures'
 
-    def get_vanilla_model_path(self):
+    def get_vanilla_model_path(self) -> str:
         return f'{self.vanilla_directory}/assets/minecraft/models'
 
-    def get_vanilla_texture_path(self):
+    def get_vanilla_texture_path(self) -> str:
         return f'{self.vanilla_directory}/assets/minecraft/textures'
 
     def model_path_from_rl(self, rl: str) -> str:
-        if ':' not in rl or 'minecraft:' in rl:
+        if is_default_rl(rl):
             return self.get_vanilla_model_path() + f'/{rl}.json'
         else:
             mod_id, namespace = rl.split(':')
             return self.get_assets_path_in_mod_source() + f'/models/{namespace}.json'
 
     def texture_path_from_rl(self, rl: str) -> str:
-        if ':' not in rl or 'minecraft:' in rl:
+        if is_default_rl(rl):
             return self.get_vanilla_texture_path() + f'/block/{rl}.json'
         else:
             mod_id, namespace = rl.split(':')
@@ -149,10 +164,3 @@ class RenderableBlock:
         else:
             mod_id, namespace = rl.split(':')
             return f'{namespace}.png'
-
-    @staticmethod
-    def prepare_file(path):
-        try:
-            os.makedirs(''.join([i + '/' for i in path.split('/')][:-1:]))
-        except FileExistsError:
-            pass

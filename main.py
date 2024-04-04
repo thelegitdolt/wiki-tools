@@ -1,6 +1,6 @@
-from photoshop import RenderableBlock
+from block_render.photoshop import RenderableBlock
 
-adzuki = RenderableBlock('neapolitan', 'adzuki_cake')
+adzuki = RenderableBlock('neapolitan', 'chocolate_cake')
 
 adzuki.write_files()
 
